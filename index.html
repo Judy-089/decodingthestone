@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>破译石头上的先秦代码 | Decoding the Stones</title>
+    <style>
+        /* --- 1. 基础设计系统与变量 --- */
+        :root {
+            --bg-paper: #f4f1ea;
+            --text-ink: #2c2c2c;
+            --accent-cinnabar: #c1272d;
+            --border-color: #dcd6cb;
+            --font-serif: "Noto Serif SC", "Songti SC", "SimSun", "Times New Roman", serif;
+            --transition-smooth: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-paper);
+            color: var(--text-ink);
+            font-family: var(--font-serif);
+            line-height: 1.8;
+            overflow-x: hidden;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3z' fill='%23ccc' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
+        }
+
+        h1, h2, h3, h4 { font-weight: 700; letter-spacing: 0.05em; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 5rem 2rem; }
+        .section-label { color: var(--accent-cinnabar); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem; display: block; font-weight: bold; }
+
+        /* --- 2. 语言切换逻辑 (CSS i18n) --- */
+        body.lang-zh .en { display: none !important; }
+        body.lang-en .zh { display: none !important; }
+
+        .lang-toggle-btn {
+            position: fixed;
+            top: 20px;
+            right: 30px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: sans-serif;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            transition: var(--transition-smooth);
+        }
+        .lang-toggle-btn:hover { background: var(--accent-cinnabar); border-color: var(--accent-cinnabar); }
+
+        /* --- 3. 首屏视差 (Hero) --- */
+        .hero { height: 100vh; position: relative; display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; overflow: hidden; }
+        .hero-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('00000103.jpg'); background-size: cover; background-position: center; z-index: -1; filter: brightness(0.4) sepia(0.3); transform: scale(1.05); transition: filter 0.1s ease-out; }
+        .hero-content { z-index: 2; padding: 3rem; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); max-width: 800px; animation: fadeIn 1.5s ease-out forwards; }
+        .hero h1 { font-size: 3.2rem; text-shadow: 0 4px 10px rgba(0,0,0,0.5); margin-bottom: 10px;}
+        .hero h2 { font-size: 1.5rem; font-weight: normal; color: #ddd; }
+        .hero p { font-size: 1.1rem; color: #ccc; border-top: 1px solid var(--accent-cinnabar); padding-top: 1rem; margin-top: 1.5rem; }
+
+        /* --- 4. 核心档案 Q&A 排版 --- */
+        .dossier-section { background: #fff; padding: 4rem; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 4rem;}
+        .dossier-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; }
+        .dossier-column h3 { font-size: 1.8rem; border-bottom: 2px solid var(--accent-cinnabar); padding-bottom: 0.5rem; margin-bottom: 2rem; color: var(--text-ink); }
+        .qa-block { margin-bottom: 2rem; }
+        .qa-question { font-weight: bold; font-size: 1.1rem; color: var(--accent-cinnabar); margin-bottom: 0.5rem; }
+        .qa-answer { font-size: 1.05rem; text-align: justify; line-height: 1.7; color: #444; }
+        
+        /* --- 5. 历史时间线排版 --- */
+        .timeline-section { margin-bottom: 6rem; position: relative; padding: 2rem 0; }
+        .timeline-container { position: relative; max-width: 800px; margin: 0 auto; }
+        .timeline-container::after { content: ''; position: absolute; width: 2px; background: var(--accent-cinnabar); top: 0; bottom: 0; left: 50%; margin-left: -1px; }
+        .timeline-item { padding: 10px 40px; position: relative; background: inherit; width: 50%; }
+        .timeline-item.left { left: 0; text-align: right; }
+        .timeline-item.right { left: 50%; }
+        .timeline-item::after { content: ''; position: absolute; width: 16px; height: 16px; right: -8px; background-color: var(--bg-paper); border: 3px solid var(--accent-cinnabar); top: 15px; border-radius: 50%; z-index: 1; }
+        .timeline-item.right::after { left: -8px; }
+        .timeline-content { padding: 1.5rem; background: #fff; border: 1px solid var(--border-color); border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+        .timeline-year { font-size: 1.5rem; font-weight: bold; color: var(--accent-cinnabar); margin-bottom: 0.5rem; }
+        .timeline-text { font-size: 0.95rem; color: #555; text-align: justify;}
+
+        /* --- 6. 宏观叙事区 --- */
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; margin-bottom: 6rem;}
+        .img-wrapper { position: relative; }
+        .img-wrapper img { width: 100%; border: 6px solid #fff; box-shadow: 10px 10px 30px rgba(0,0,0,0.1); }
+        .text-block h2 { font-size: 2.2rem; margin-bottom: 1.5rem; line-height: 1.3; }
+        .text-block p { margin-bottom: 1.5rem; text-align: justify; font-size: 1.1rem; }
+        
+        .seal-hotspot { position: absolute; top: 2%; left: 42%; width: 15%; aspect-ratio: 1/1; border: 2px solid var(--accent-cinnabar); border-radius: 50%; cursor: pointer; animation: pulse 2s infinite; }
+        .seal-tooltip { position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: var(--text-ink); color: #fff; padding: 1.5rem; width: 300px; font-size: 0.95rem; opacity: 0; visibility: hidden; transition: var(--transition-smooth); text-align: left; pointer-events: none; z-index: 10; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        .seal-hotspot:hover .seal-tooltip { opacity: 1; visibility: visible; bottom: 110%; }
+
+        /* --- 7. 考据工作台 --- */
+        .workspace { background: #e8e4dc; padding: 5rem 0; border-top: 1px solid var(--border-color); }
+        .ws-container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 3rem; height: 75vh; min-height: 650px; padding: 0 2rem;}
+        .viewer-stage { position: relative; background: #222; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid var(--text-ink); box-shadow: inset 0 0 50px rgba(0,0,0,0.8);}
+        .main-image { max-width: 95%; max-height: 95%; object-fit: contain; cursor: crosshair; transition: opacity 0.3s ease; }
+        .img-magnifier-glass { position: absolute; border: 3px solid var(--accent-cinnabar); border-radius: 50%; cursor: none; width: 180px; height: 180px; box-shadow: 0 5px 20px rgba(0,0,0,0.6); display: none; z-index: 20; }
+        .analysis-panel { display: flex; flex-direction: column; background: #fff; padding: 2.5rem; border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .panel-title { font-size: 2rem; margin-bottom: 0.5rem; color: var(--accent-cinnabar); }
+        .panel-meta { font-family: monospace; color: #888; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px dashed var(--border-color); }
+        .panel-desc { font-size: 1.15rem; line-height: 1.8; margin-bottom: 1.5rem; text-align: justify; flex-grow: 1; overflow-y: auto;}
+        .thumb-strip-wrapper { width: 100%; overflow-x: auto; padding-bottom: 10px; margin-top: auto;}
+        .thumb-strip { display: flex; gap: 1rem; width: max-content; }
+        .thumb { width: 80px; height: 110px; flex-shrink: 0; border: 2px solid transparent; cursor: pointer; opacity: 0.4; transition: var(--transition-smooth); overflow: hidden; position: relative;}
+        .thumb img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%); transition: var(--transition-smooth); }
+        .thumb.active, .thumb:hover { opacity: 1; border-color: var(--accent-cinnabar); transform: translateY(-5px); }
+        .thumb.active img, .thumb:hover img { filter: grayscale(0%); }
+        .thumb-label { position: absolute; bottom: 0; background: rgba(193,39,45,0.9); color: #fff; font-size: 0.7rem; width: 100%; text-align: center;}
+
+        /* --- 8. 猜字小游戏 --- */
+        .minigame-section { background: var(--text-ink); color: #fff; padding: 6rem 2rem; text-align: center; }
+        .game-card { max-width: 800px; margin: 0 auto; background: rgba(255,255,255,0.03); padding: 3rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; }
+        .game-img-wrapper { position: relative; display: inline-block; overflow: hidden; border-radius: 4px; margin-bottom: 2.5rem; background: #000; line-height: 0; }
+        .game-img { max-height: 380px; display: block; filter: contrast(1.2); width: auto; }
+        .target-box { position: absolute; border: 3px solid var(--accent-cinnabar); box-shadow: 0 0 0 9999px rgba(0,0,0,0.65); border-radius: 4px; transition: all 0.5s ease; pointer-events: none; z-index: 5; }
+        .options-grid { display: flex; justify-content: center; gap: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap;}
+        .btn-option { background: transparent; border: 2px solid #fff; color: #fff; padding: 1rem 2.5rem; font-size: 1.5rem; font-family: var(--font-serif); cursor: pointer; transition: var(--transition-smooth); border-radius: 4px; }
+        .btn-option:hover { background: rgba(255,255,255,0.1); }
+        .btn-option.correct { background: var(--accent-cinnabar); border-color: var(--accent-cinnabar); }
+        .btn-option.wrong { background: #555; border-color: #555; color: #999; animation: shake 0.5s; pointer-events: none; }
+        .resolution-panel { background: #fff; color: var(--text-ink); padding: 2rem; border-radius: 4px; border-left: 5px solid var(--accent-cinnabar); display: none; text-align: left; animation: fadeIn 0.5s; margin-top: 2rem; }
+        .next-btn { margin-top: 1rem; background: var(--text-ink); color: #fff; border: none; padding: 0.8rem 2rem; cursor: pointer; font-size: 1.1rem;}
+
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 50% { transform: translateX(10px); } 75% { transform: translateX(-10px); } }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(193, 39, 45, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(193, 39, 45, 0); } 100% { box-shadow: 0 0 0 0 rgba(193, 39, 45, 0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 900px) {
+            .grid-layout, .ws-container, .dossier-grid { grid-template-columns: 1fr; height: auto; }
+            .viewer-stage { height: 400px; }
+            .timeline-item { width: 100%; padding-left: 70px; padding-right: 25px; }
+            .timeline-item.left, .timeline-item.right { left: 0; text-align: left; }
+            .timeline-container::after { left: 31px; }
+            .timeline-item.left::after, .timeline-item.right::after { left: 21px; }
+        }
+    </style>
+</head>
+<body class="lang-zh">
+
+    <button class="lang-toggle-btn" id="langToggleBtn" onclick="toggleLanguage()">English</button>
+
+    <header class="hero">
+        <div class="hero-bg" id="heroBg"></div>
+        <div class="hero-content">
+            <h1>
+                <span class="zh">破译石头上的先秦代码</span>
+                <span class="en">Decoding the Stones</span>
+            </h1>
+            <h2>
+                <span class="zh">晚清金石学巅峰《奇觚室樂石文述》研究</span>
+                <span class="en">The Epigraphic World of Liu Xinyuan</span>
+            </h2>
+            <p>
+                <span class="zh">从神话符箓到帝国物证的证据链推演 (1899年刊本)</span>
+                <span class="en">Reconstructing Antiquity through Evidential Scholarship (1899)</span>
+            </p>
+        </div>
+    </header>
+
+    <div class="container">
+        
+        <div class="dossier-section">
+            <div style="text-align: center; margin-bottom: 3rem;">
+                <span class="section-label">Archival Dossier</span>
+                <h2 style="font-size: 2.2rem;">
+                    <span class="zh">文献档案卷宗</span>
+                    <span class="en">Documentary Dossier</span>
+                </h2>
+            </div>
+            <div class="dossier-grid">
+                <div class="dossier-column">
+                    <h3>Part I: Examine</h3>
+                    <div class="qa-block">
+                        <div class="qa-question">
+                            <span class="zh">这是什么文献？(What is the item?)</span>
+                            <span class="en">What is the item?</span>
+                        </div>
+                        <div class="qa-answer">
+                            <span class="zh">《奇觚室樂石文述》。这是一部晚清金石学、古文字学著作，通过记录和分析古代汉字形体与碑刻铭文，进行严谨的文本与文献考证。</span>
+                            <span class="en"><em>Qi gu shi yue shi wen shu</em> (奇觚室樂石文述). It is a late-Qing scholarly work on epigraphy and paleography, documenting and analyzing ancient character forms and inscriptions as part of textual and philological research.</span>
+                        </div>
+                    </div>
+                    <div class="qa-block">
+                        <div class="qa-question">
+                            <span class="zh">作者与年代 (Creator & Year)</span>
+                            <span class="en">Creator & Year</span>
+                        </div>
+                        <div class="qa-answer">
+                            <span class="zh">由<strong>刘心源</strong>于<strong>1899</strong>年创作。</span>
+                            <span class="en">Created by <strong>Liu Xinyuan (刘心源)</strong> in <strong>1899</strong>.</span>
+                        </div>
+                    </div>
+                    <div class="qa-block">
+                        <div class="qa-question">
+                            <span class="zh">插图及其功能 (Illustrations & Function)</span>
+                            <span class="en">Illustrations & Function</span>
+                        </div>
+                        <div class="qa-answer">
+                            <span class="zh">是的，书中包含放大的古文字字形拓片。但这些绝非为了装饰，而是具有**功能性**：它们作为语言学和教学工具（Pedagogical tools），直观记录了字形变体，为文献分析提供支撑。这些图像的作用是**法理物证**，而非点缀。</span>
+                            <span class="en">Yes. The text contains illustrations in the form of enlarged archaic character glyphs. These are not decorative but <strong>functional</strong>: they serve as philological and pedagogical tools, visually documenting variant or ancient character forms in support of textual and linguistic analysis. The images function as evidence rather than ornament.</span>
+                        </div>
+                    </div>
+                    <div class="qa-block">
+                        <div class="qa-question">
+                            <span class="zh">装帧形式 (Binding Format)</span>
+                            <span class="en">Binding Format</span>
+                        </div>
+                        <div class="qa-answer">
+                            <span class="zh">传统中式线装。装帧极为简朴、实用。这很有可能是原装，或至少是符合当时年代的早期装帧。</span>
+                            <span class="en">It is bound in the traditional Chinese thread binding format. Binding is sparse and utilitarian. Very likely yes, or at least an early, period-appropriate binding.</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dossier-column">
+                    <h3>Part II: Research</h3>
+                    <div class="qa-block">
+                        <div class="qa-question">
+                            <span class="zh">关于作者 (About the Creator)</span>
+                            <span class="en">About the Creator</span>
+                        </div>
+                        <div class="qa-answer">
+                            <span class="zh">刘心源（1848–1915），晚清至民国初年的金石学家、古文字学家与书法家。作为进士与清朝高级官员，他的学术研究建立在对铭文与古物的亲身考察之上。本书代表了他在金石与文献考据领域的最高成就。</span>
+                            <span class="en">Liu Xinyuan (1848–1915) was a late Qing–early Republican epigrapher, paleographer, and calligrapher. A jinshi degree-holder and senior official, he based his scholarship on firsthand study of inscriptions and ancient artifacts. <em>Qi gu shi yue shi wen shu</em> represents his major work in epigraphic and textual research.</span>
+                        </div>
+                    </div>
+                    <div class="qa-block">
+                        <div class="qa-question">
+                            <span class="zh">创作时代背景 (Historical Context)</span>
+                            <span class="en">Historical Context</span>
+                        </div>
+                        <div class="qa-answer">
+                            <span class="zh">本书与它所反映的晚清时代同频共振。那个时期充满了政治动荡、外国帝国主义的施压，以及对中国传统制度日益加深的怀疑。面对前所未有的巨变，晚清学者通过严密的考据学（Kaozheng），将文本解释建立在物质证据之上，以此来挽救和强化古典学问。</span>
+                            <span class="en">The item was created contemporaneously with the late Qing dynasty it reflects. This period was marked by political instability, foreign imperial pressure, and growing doubts about China’s traditional institutions. Works like this reflect late Qing scholars’ efforts to preserve and strengthen classical learning through rigorous evidential scholarship, grounding textual interpretation in material evidence at a time of profound transition.</span>
+                        </div>
+                    </div>
+                    <div class="qa-block">
+                        <div class="qa-question">
+                            <span class="zh">未解之谜与流传路径 (Unanswered Questions & Provenance)</span>
+                            <span class="en">Unanswered Questions & Provenance</span>
+                        </div>
+                        <div class="qa-answer">
+                            <span class="zh">虽然本书提供了晚清金石学的详尽证据，但它无法回答关于其目标读者、发行量或社会反响的问题。仅仅依靠这本书本身，也无法解释这本特定的孤本是如何从清朝官员的书房流出、沾染上日本藏书印，并最终进入加州大学洛杉矶分校（UCLA）等现代研究型图书馆的。</span>
+                            <span class="en">While the item provides extensive evidence of late Qing epigraphic scholarship, it cannot answer questions about its intended audience, circulation, reception, or provenance. Nor can the item alone explain how this particular copy was transmitted from a private Qing study, acquired Japanese collector seals, and eventually entered a modern research library like UCLA.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-section">
+            <div style="text-align: center; margin-bottom: 3rem;">
+                <span class="section-label">Historical Timeline</span>
+                <h2 style="font-size: 2.2rem;">
+                    <span class="zh">乱世中的学术：1899年前后的晚清帝国</span>
+                    <span class="en">Scholarship in Turmoil: The Late Qing Empire around 1899</span>
+                </h2>
+                <br>
+                
+            </div>
+            <div class="timeline-container">
+                <div class="timeline-item left">
+                    <div class="timeline-content">
+                        <div class="timeline-year">1848</div>
+                        <div class="timeline-text">
+                            <span class="zh"><strong>刘心源出生。</strong> 这一时期，大清帝国刚经历第一次鸦片战争的冲击，传统的知识体系开始面临西方思想的挑战。</span>
+                            <span class="en"><strong>Birth of Liu Xinyuan.</strong> The Qing Empire had just suffered the shock of the First Opium War, and traditional knowledge systems began facing challenges from Western thought.</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item right">
+                    <div class="timeline-content">
+                        <div class="timeline-year">1894 - 1895</div>
+                        <div class="timeline-text">
+                            <span class="zh"><strong>甲午中日战争。</strong> 清朝战败，签订《马关条约》。空前的民族危机促使知识分子群体开始寻找救亡图存的道路。</span>
+                            <span class="en"><strong>First Sino-Japanese War.</strong> The Qing defeat and the Treaty of Shimonoseki triggered an unprecedented national crisis, pushing intellectuals to seek new paths for national survival.</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item left">
+                    <div class="timeline-content">
+                        <div class="timeline-year">1898</div>
+                        <div class="timeline-text">
+                            <span class="zh"><strong>戊戌变法（百日维新）。</strong> 政治改革彻底失败，传统经典与制度遭受严重质疑。</span>
+                            <span class="en"><strong>Hundred Days' Reform.</strong> The utter failure of this political reform movement led to severe questioning of traditional classics and institutions.</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item right">
+                    <div class="timeline-content" style="border: 2px solid var(--accent-cinnabar);">
+                        <div class="timeline-year">1899</div>
+                        <div class="timeline-text">
+                            <span class="zh"><strong>《奇觚室樂石文述》刊印。</strong> 在极度动荡的政治夹缝中，作为高级官员的刘心源没有参与激进的政治运动，而是转向最古老的先秦石刻。这种极其严密的“考据学”（Kaozheng），不仅是学术研究，更是晚清汉族知识分子对传统华夏文明的一种“文化防御”与法理寻根。</span>
+                            <span class="en"><strong>Publication of <em>Qi gu shi yue shi wen shu</em>.</strong> In the midst of severe political turmoil, Liu Xinyuan, a senior official, avoided radical movements and turned to ancient pre-Qin steles. This rigorous "Evidential Scholarship" (Kaozheng) was not just academic research; it served as a form of cultural defense and a search for the legal/historical roots of Han civilization.</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item left">
+                    <div class="timeline-content">
+                        <div class="timeline-year">1900 - 1911</div>
+                        <div class="timeline-text">
+                            <span class="zh"><strong>八国联军侵华至辛亥革命。</strong> 晚清帝国最终走向崩溃，刘心源的学术著作在此期间流传，并随着学者的离散漂洋过海。</span>
+                            <span class="en"><strong>Boxer Rebellion to Xinhai Revolution.</strong> The Qing Empire finally collapsed. Liu's scholarly works circulated during this period, eventually crossing oceans alongside the diaspora of scholars.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="grid-layout">
+            <div class="text-block">
+                <span class="section-label">Architecture of Time / 宏大体系</span>
+                <h2>
+                    <span class="zh">时间的建筑与神话的边缘</span>
+                    <span class="en">The Architecture of Time & Edge of Myth</span>
+                </h2>
+                <p>
+                    <span class="zh">刘心源的野心展现在全书的总目录中。这绝不仅仅是一本字帖，他按朝代编排（图97），试图用第一手拓片构建一部物质形态的中国文明史。</span>
+                    <span class="en">Liu Xinyuan's ambition is revealed in the master table of contents. This is no mere calligraphy copybook; organized chronologically (Image 97), it attempts to build a material history of Chinese civilization using firsthand rubbings.</span>
+                </p>
+                <p>
+                    <span class="zh"><strong>卷一开篇的震撼：</strong> 极具争议的“岣嶁禹碑”（图101）。这种形如道教符箓的“鸟虫篆”，展现了晚清学者试图用极其严密的实证方法，为大禹治水等最古老神话寻找法理依据的极致尝试。</span>
+                    <span class="en"><strong>The shock of Volume 1:</strong> The highly controversial Goulou Stele (Image 101). This talismanic "Bird-Worm script" demonstrates late-Qing scholars' ultimate attempt to use rigorous empirical methods to find legal and historical proof for ancient myths like Yu the Great's flood control.</span>
+                </p>
+            </div>
+            <div class="img-wrapper" style="display: flex; gap: 15px;">
+                <img src="00000097.jpg" alt="总目录" style="flex: 1; height: 350px; object-fit: cover; object-position: top;">
+                <img src="00000101.jpg" alt="岣嶁禹碑" style="flex: 1; height: 350px; object-fit: cover; object-position: top;">
+            </div>
+        </section>
+
+        <hr style="border: 0; height: 1px; background: var(--border-color); margin: 4rem 0;">
+
+        <section class="grid-layout">
+            <div class="img-wrapper">
+                <img src="00000003.jpg" alt="书籍封面与印章">
+                <div class="seal-hotspot">
+                    <div class="seal-tooltip">
+                        <strong>
+                            <span class="zh">须藤氏藏书 (The Sudo Collection)</span>
+                            <span class="en">The Sudo Collection Seal</span>
+                        </strong><br>
+                        <span class="zh">这枚红色印章解答了 Q&A 中关于 Provenance 的疑问。它证明本书曾流传至日本私家藏书阁，最终被数字化并进入了诸如 UCLA 等现代高校的学术网络。</span>
+                        <span class="en">This red seal answers the provenance question from the Q&A. It proves the book traveled to a Japanese private collection before being digitized and entering modern academic networks like UCLA.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="text-block">
+                <span class="section-label">Provenance / 全球流转</span>
+                <h2>
+                    <span class="zh">档案之外的全球旅程</span>
+                    <span class="en">A Global Journey Beyond the Archive</span>
+                </h2>
+                <p>
+                    <span class="zh">正如研究卷宗中所指出的，这本书本身无法回答它是如何流传的。但封面上刺眼的红色印章“须藤氏藏书”提供了关键线索。</span>
+                    <span class="en">As noted in the research dossier, the book itself cannot explain how it was transmitted. However, the striking red seal "Sudo Clan Collection" provides a crucial clue.</span>
+                </p>
+                <p>
+                    <span class="zh">这本诞生于 1899 年大清帝国崩溃前夕的著作，承载着中国上古时期的政治与文化密码，跨越了战争与国界。如今，UCLA 东亚图书馆完好保存着这本实体原书——笔者曾亲手翻阅，感受纸页的质地与印痕。与此同时，哈佛大学图书馆亦藏有同一版本，并经由 HathiTrust 数字图书馆向全球开放数字扫描件。一部 1899 年的金石学著作，竟能同时以实体与数字两种形态横跨太平洋两端，这本身就是书籍史（History of the Book）上一次跨越百年的完美闭环。</span>
+                    <span class="en">Born on the eve of the Qing Empire's collapse in 1899, this book carries the political and cultural codes of ancient China across wars and borders. Today, UCLA's East Asian Library holds the physical copy—which the author of this site has personally handled, turning its pages and tracing its ink. Simultaneously, Harvard University Library holds another copy, digitized and made globally accessible through HathiTrust Digital Library. That a single work of late-Qing epigraphy can exist both as a tangible artifact and a digital surrogate across two sides of the Pacific is, in itself, a perfect century-long loop in the History of the Book.</span>
+                </p>
+            </div>
+        </section>
+    </div>
+
+    <section class="workspace">
+        <div class="container" style="padding-top: 0; padding-bottom: 2rem;">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <span class="section-label">The Evidential Workspace</span>
+                <h2 style="font-size: 2.5rem;">
+                    <span class="zh">金石考据工作台</span>
+                    <span class="en">Epigraphic Workspace</span>
+                </h2>
+                <p>
+                    <span class="zh">这是《奇觚室樂石文述》的核心精华。点击下方缩略图，跟随刘心源的视线，体验考据学（Kaozheng）的严谨逻辑。</span>
+                    <span class="en">This is the core of the book. Click the thumbnails below to follow Liu Xinyuan's gaze and experience the rigorous logic of Evidential Scholarship (Kaozheng).</span>
+                </p>
+            </div>
+        </div>
+
+        <div class="ws-container">
+            <div class="viewer-stage" id="viewerStage">
+                <img id="mainDisplay" src="00000004.jpg" class="main-image">
+                <div id="magnifier" class="img-magnifier-glass"></div>
+            </div>
+            <div class="analysis-panel">
+                <h3 class="panel-title" id="panelTitle">Loading...</h3>
+                <div class="panel-meta" id="metaId">DOCUMENT_ID...</div>
+                <div class="panel-desc" id="panelDesc"></div>
+                <div class="thumb-strip-wrapper">
+                    <div class="thumb-strip" id="thumbStrip"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="minigame-section">
+        <div class="container" style="padding: 0;">
+            <span class="section-label" style="color: #fff;">Mini-Game</span>
+            <h2 style="font-size: 2.5rem; margin-bottom: 2rem;">
+                <span class="zh">金石学家的试炼</span>
+                <span class="en">The Epigrapher's Trial</span>
+            </h2>
+            <p style="margin-bottom: 3rem; color: #aaa;">
+                <span class="zh">刘心源的考据本质上是一场极其硬核的“猜字游戏”。请观察高亮区域的象形特征，你能认出这是什么字吗？</span>
+                <span class="en">Liu's scholarship is essentially a hardcore "character guessing game." Observe the pictographic features in the highlighted area. Can you identify the character?</span>
+            </p>
+            
+            <div class="game-card">
+                <div class="game-img-wrapper">
+                    <img id="gameImg" src="00000103.jpg" class="game-img" alt="Mystery Archaic Character">
+                    <div id="targetBox" class="target-box"></div>
+                </div>
+                
+                <div class="options-grid" id="optionsGrid"></div>
+                
+                <div class="resolution-panel" id="resolutionPanel">
+                    <h3 style="color: var(--accent-cinnabar); font-size: 2rem; margin-bottom: 1rem;" id="resTitle">正确！(Correct!)</h3>
+                    <p id="resText" style="font-size: 1.1rem; margin-bottom: 1.5rem; line-height: 1.8;"></p>
+                    <button class="next-btn" onclick="nextQuestion()">
+                        <span class="zh">下一题 →</span>
+                        <span class="en">Next Challenge →</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer style="text-align: center; padding: 3rem 2rem; background: #111; color: #777; font-size: 0.9rem; line-height: 1.9;">
+        <p style="margin-bottom: 1rem; color: #999; font-size: 1rem;">
+            <span class="zh">《破译石头上的先秦代码》</span>
+            <span class="en">Decoding the Stones</span>
+        </p>
+
+        <p style="margin-bottom: 0.8rem;">
+            <span class="zh">本研究基于两项一手资料：其一，笔者于 UCLA 东亚图书馆对《奇觚室樂石文述》实体原书的亲身查阅；其二，哈佛大学图书馆藏本经由 HathiTrust 数字图书馆提供的高清数字扫描件。</span>
+            <span class="en">This research is based on two primary sources: the physical copy of <em>Qi gu shi yue shi wen shu</em> personally examined at UCLA's East Asian Library, and the high-resolution digital scans of the Harvard University Library copy made available through HathiTrust Digital Library.</span>
+        </p>
+
+        <p style="margin-bottom: 0.8rem;">
+            <span class="zh">数字扫描件由 Google 制作，原件藏于哈佛大学。本作品已进入公共领域（Public Domain）。图像由 HathiTrust 提供，仅供教育、学术及非商业用途。</span>
+            <span class="en">Digital images produced by Google; original held by Harvard University. This work is in the Public Domain. Images provided by HathiTrust Digital Library for educational, scholarly, and non-commercial purposes only.</span>
+        </p>
+
+        <p style="margin-bottom: 0.8rem;">
+            <span class="zh">HathiTrust 永久链接：</span>
+            <span class="en">HathiTrust Persistent Link: </span>
+            <a href="https://hdl.handle.net/2027/hvd.32044067539916" target="_blank" style="color: #c1272d; text-decoration: none;">hdl.handle.net/2027/hvd.32044067539916</a>
+        </p>
+
+        <p style="border-top: 1px solid #222; padding-top: 1.2rem; margin-top: 1.2rem;">
+            <span class="zh">网站内容（文字分析、排版设计、交互逻辑）© 2026。数字人文（Digital Humanities）视角的金石学与证据链研究。</span>
+            <span class="en">Site content (written analysis, design, interactive logic) © 2026. Epigraphy and Evidential Analysis from a Digital Humanities Perspective.</span>
+        </p>
+    </footer>
+
+    <script>
+        // --- 0. Language Toggle State ---
+        let currentLang = 'zh';
+
+        function toggleLanguage() {
+            const body = document.body;
+            const btn = document.getElementById('langToggleBtn');
+            if (currentLang === 'zh') {
+                body.classList.remove('lang-zh');
+                body.classList.add('lang-en');
+                btn.innerText = '中文';
+                currentLang = 'en';
+            } else {
+                body.classList.remove('lang-en');
+                body.classList.add('lang-zh');
+                btn.innerText = 'English';
+                currentLang = 'zh';
+            }
+            // Re-render JS dynamic components
+            renderEvidenceText();
+            renderQuestionText();
+        }
+
+        // --- 1. Workspace Data (Bilingual) ---
+        const evidenceData = [
+            { 
+                id: "04", img: "00000004.jpg", 
+                zh: { title: "吾车鼓：车马齐备", desc: "<strong>叙事的起点：</strong>拓片上清晰可见“吾马既同”。刘心源将版面设计为对比鲜明的黑白结构，这不仅是视觉排版，更是训练后代学者进行严密考据的教育工具。" },
+                en: { title: "The Hunt Begins: Chariots & Horses", desc: "<strong>The Narrative Origin:</strong> The rubbing clearly shows 'Our horses are gathered'. Liu engineered this black-and-white layout not just for aesthetics, but as a pedagogical tool to train future scholars in rigorous evidential scholarship." }
+            },
+            { 
+                id: "10", img: "00000010.jpg", 
+                zh: { title: "引入物证：毛公鼎", desc: "<strong>交叉证据链的建立：</strong>刘心源在此处密集的楷书批注中，明确引用了青铜器“毛公鼎”的铭文来佐证石鼓文的时代。这是考据学（Kaozheng）最核心的方法论：以物证字，孤证不立。" },
+                en: { title: "Introducing Evidence: Mao Gong Ding", desc: "<strong>Building the Cross-Evidence Chain:</strong> In these dense regular-script annotations, Liu explicitly cites the bronze inscriptions of the 'Mao Gong Ding' to corroborate the Stone Drums' era. This is the core of Kaozheng methodology: using artifacts to prove texts." }
+            },
+            { 
+                id: "15", img: "00000015.jpg", 
+                zh: { title: "角弓：军事与狩猎", desc: "<strong>以字为画：</strong>巨大的“角弓”二字，直接还原了周代贵族手持赤色角弓准备射击的瞬间动作。石刻在这里不仅是文学记录，更是还原先秦军事武装的硬核物证。" },
+                en: { title: "Horned Bow: Military & Hunt", desc: "<strong>Painting with Words:</strong> The massive characters for 'Horned Bow' visually reconstruct the moment Zhou nobles prepared to shoot. The stone carving here serves as hard physical evidence of pre-Qin military armaments." }
+            },
+            { 
+                id: "21", img: "00000021.jpg", 
+                zh: { title: "汧殹鼓：水文与生态", desc: "<strong>场景转换：</strong>从陆地转向河流。这面鼓记录了汧河流域丰富的水产（如“鰋鯉”）。刘心源通过分析“鱼”字部首的演变，完美复原了一幅先秦贵族的捕鱼生活长卷。" },
+                en: { title: "River Drum: Hydrology & Ecology", desc: "<strong>Scene Shift:</strong> Moving from land to river. This drum records the abundant aquatic life of the Qian River (like carp). By analyzing the evolution of the 'fish' radical, Liu restores a vivid panorama of Zhou noble fishing life." }
+            },
+            { 
+                id: "28", img: "00000028.jpg", 
+                zh: { title: "文本交锋：驳斥前人", desc: "<strong>纯文本的压迫感：</strong>在这一页，刘心源展现了疯狂的跨文本互证。他毫不留情地指出宋代、明代学者的错误，甚至敢于推翻权威古籍的论断。通过纠错，他确立了自己对此领域的最高学术解释权。" },
+                en: { title: "Textual Combat: Refuting Predecessors", desc: "<strong>The Density of Pure Text:</strong> On this page, Liu executes fierce cross-textual verification. He mercilessly points out errors by Song and Ming scholars, establishing his supreme academic authority in this domain through meticulous corrections." }
+            },
+            { 
+                id: "41", img: "00000041.jpg", 
+                zh: { title: "田车鼓：先秦机械学", desc: "<strong>造车指南：</strong>这个巨大的“車”字不再是一个抽象符号，而是一张精密的工程图纸。车轮、车轴、车厢的结构被具象化地刻在石头上，为现代研究周代交通工具提供了不可替代的数据点。" },
+                en: { title: "Chariot Drum: Ancient Mechanics", desc: "<strong>Chariot Blueprint:</strong> This massive character for 'Chariot' (車) acts as a precise engineering blueprint. Wheels, axles, and carriages are concretized in stone, providing irreplaceable data points for modern researchers of Zhou transportation." }
+            },
+            { 
+                id: "54", img: "00000054.jpg", 
+                zh: { title: "主权的宣示：天与王", desc: "<strong>政治跃升：</strong>拓片中赫然出现了“天”与“王”二字。这确凿地证明，石鼓文记载的绝非简单的娱乐性狩猎，而是由新王（嗣王）带领群臣进行的最高政治仪式。猎场，即是宣示天命与主权的权力场。" },
+                en: { title: "Sovereignty: Heaven & King", desc: "<strong>Political Escalation:</strong> The characters for 'Heaven' (天) and 'King' (王) suddenly appear. This proves the drums record not a mere sport, but a supreme political ritual led by the Succeeding King. The hunting ground is the arena for validating sovereignty." }
+            },
+            { 
+                id: "64", img: "00000064.jpg", 
+                zh: { title: "定格速度：电影级动态", desc: "<strong>如何刻画速度？</strong>刘心源破译了大量带有“马”字旁和表示“烟尘”的生僻字，并在总结中写道“尘起之貌”。古代工匠通过部首的堆叠，成功在静态岩石上定格了车马疾驰、尘土飞扬的动作场面。" },
+                en: { title: "Capturing Speed: Cinematic Dynamics", desc: "<strong>How to carve speed?</strong> Liu decodes obscure characters with 'horse' and 'dust' radicals. Ancient artisans successfully froze the high-speed chariot chase and rising dust onto static rock by stacking radicals—a cinematic action sequence in stone." }
+            }
+        ];
+
+        let currentEvidenceIdx = 0;
+
+        function initWorkspace() {
+            const strip = document.getElementById('thumbStrip');
+            evidenceData.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = `thumb ${idx === 0 ? 'active' : ''}`;
+                div.innerHTML = `<img src="${item.img}"><div class="thumb-label">IMG ${item.id}</div>`;
+                div.onclick = () => loadEvidence(idx);
+                strip.appendChild(div);
+            });
+            loadEvidence(0);
+        }
+
+        function loadEvidence(idx) {
+            currentEvidenceIdx = idx;
+            const data = evidenceData[idx];
+            const img = document.getElementById('mainDisplay');
+            img.style.opacity = 0; 
+            setTimeout(() => {
+                img.src = data.img;
+                document.getElementById('metaId').innerText = `DOCUMENT_ID: 000000${data.id}.jpg`;
+                renderEvidenceText(); // Use helper to apply correct language
+                
+                document.querySelectorAll('.thumb').forEach((el, i) => { el.classList.toggle('active', i === idx); });
+                img.onload = () => { img.style.opacity = 1; setupMagnifier(); };
+            }, 300);
+        }
+
+        function renderEvidenceText() {
+            const data = evidenceData[currentEvidenceIdx];
+            document.getElementById('panelTitle').innerText = data[currentLang].title;
+            document.getElementById('panelDesc').innerHTML = data[currentLang].desc;
+        }
+
+        function setupMagnifier() {
+            const img = document.getElementById('mainDisplay');
+            const glass = document.getElementById('magnifier');
+            const zoom = 2.5;
+            glass.style.backgroundImage = `url('${img.src}')`;
+            
+            const moveMagnifier = (e) => {
+                e.preventDefault();
+                const pos = getCursorPos(e);
+                let x = pos.x, y = pos.y;
+                if (x > img.width) x = img.width; if (x < 0) x = 0;
+                if (y > img.height) y = img.height; if (y < 0) y = 0;
+                glass.style.left = (x - glass.offsetWidth / 2) + "px";
+                glass.style.top = (y - glass.offsetHeight / 2) + "px";
+                glass.style.backgroundSize = (img.width * zoom) + "px " + (img.height * zoom) + "px";
+                glass.style.backgroundPosition = `-${x * zoom - glass.offsetWidth / 2}px -${y * zoom - glass.offsetHeight / 2}px`;
+            };
+            const getCursorPos = (e) => {
+                const a = img.getBoundingClientRect();
+                return { x: e.pageX - a.left - window.pageXOffset, y: e.pageY - a.top - window.pageYOffset };
+            };
+
+            img.addEventListener("mousemove", moveMagnifier);
+            img.addEventListener("mouseenter", () => glass.style.display = "block");
+            img.addEventListener("mouseleave", () => glass.style.display = "none");
+        }
+
+        // --- 2. Game Logic (Bilingual) ---
+        const gameData = [
+            {
+                img: "00000103.jpg", box: { top: "18%", left: "10%", width: "80%", height: "70%" }, answer: 1,
+                zh: { options: ["鸟 (Bird)", "帝 (Emperor)", "水 (Water)"], res: "<strong>【帝】</strong> - 刘心源破解了这个宏大且对称的图腾。尽管它看起来像道教符箓或飞鸟（鸟虫篆），但这其实是代表上古最高神权的“帝”字。" },
+                en: { options: ["鸟 (Bird)", "帝 (Emperor)", "水 (Water)"], res: "<strong>【帝】 (Emperor)</strong> - Liu decoded this majestic, symmetrical totem. Despite looking like a Daoist talisman or a bird, it is the character for 'Di' (Emperor), representing supreme ancient divine power." }
+            },
+            {
+                img: "00000041.jpg", box: { top: "33%", left: "39%", width: "16%", height: "22%" }, answer: 2,
+                zh: { options: ["网 (Net)", "鼎 (Cauldron)", "車 (Chariot)"], res: "<strong>【車】</strong> - 它不仅是个字，更是一张古代工程图纸！刘心源的考据将其完美拆解为车轮、车轴和车厢，记录了周代物质文化。" },
+                en: { options: ["网 (Net)", "鼎 (Cauldron)", "車 (Chariot)"], res: "<strong>【車】 (Chariot)</strong> - It's not just a word; it's an ancient engineering blueprint! Liu's analysis deconstructs it into wheels, axles, and carriages, recording Zhou material culture." }
+            },
+            {
+                img: "00000035.jpg", box: { top: "45%", left: "55%", width: "22%", height: "40%" }, answer: 0,
+                zh: { options: ["马 (Horse)", "鹿 (Deer)", "虎 (Tiger)"], res: "<strong>【马】</strong> - （原图中为“駞”字的马字旁）。注意原石刻上狂放的鬃毛与四蹄的动感。先秦工匠用刻刀完美定格了战马奔腾的形态。" },
+                en: { options: ["马 (Horse)", "鹿 (Deer)", "虎 (Tiger)"], res: "<strong>【马】 (Horse)</strong> - Notice the wild mane and the dynamic hooves. Pre-Qin artisans used chisels to perfectly freeze the galloping form of the warhorse in stone." }
+            }
+        ];
+        let currentQ = 0;
+        let isAnswered = false; // State to track if current question is solved
+
+        function positionBox() {
+            const q = gameData[currentQ];
+            const img = document.getElementById('gameImg');
+            const wrapper = img.parentElement;
+            const tBox = document.getElementById('targetBox');
+
+            // Get the actual rendered size of the image
+            const imgRect = img.getBoundingClientRect();
+            const wrapperRect = wrapper.getBoundingClientRect();
+
+            // Offset of the image within the wrapper (image may be centered)
+            const offsetX = imgRect.left - wrapperRect.left;
+            const offsetY = imgRect.top - wrapperRect.top;
+
+            // Convert percentage-based box coords relative to actual image size
+            const top    = offsetY + (parseFloat(q.box.top)    / 100) * imgRect.height;
+            const left   = offsetX + (parseFloat(q.box.left)   / 100) * imgRect.width;
+            const width  =           (parseFloat(q.box.width)  / 100) * imgRect.width;
+            const height =           (parseFloat(q.box.height) / 100) * imgRect.height;
+
+            tBox.style.top    = top    + 'px';
+            tBox.style.left   = left   + 'px';
+            tBox.style.width  = width  + 'px';
+            tBox.style.height = height + 'px';
+        }
+
+        function loadQuestion() {
+            isAnswered = false;
+            const q = gameData[currentQ];
+            const img = document.getElementById('gameImg');
+
+            document.getElementById('resolutionPanel').style.display = 'none';
+            document.getElementById('targetBox').style.boxShadow = "0 0 0 9999px rgba(0,0,0,0.65)";
+
+            // Position box after image loads (handles src changes)
+            img.onload = () => { positionBox(); };
+            if (img.complete && img.src.includes(q.img)) {
+                positionBox();
+            }
+            img.src = q.img;
+
+            renderQuestionText();
+        }
+
+        function renderQuestionText() {
+            const q = gameData[currentQ];
+            const grid = document.getElementById('optionsGrid');
+            grid.innerHTML = ''; // clear
+            
+            q[currentLang].options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-option';
+                btn.innerText = opt;
+                // If already answered correctly, disable and highlight the right one
+                if (isAnswered) {
+                    btn.style.pointerEvents = 'none';
+                    if (idx === q.answer) btn.classList.add('correct');
+                } else {
+                    btn.onclick = () => checkAnswer(idx, btn);
+                }
+                grid.appendChild(btn);
+            });
+
+            if (isAnswered) {
+                document.getElementById('resText').innerHTML = q[currentLang].res;
+                document.getElementById('resTitle').innerText = currentLang === 'zh' ? '正确！(Correct!)' : 'Correct!';
+            }
+        }
+
+        function checkAnswer(idx, btn) {
+            const q = gameData[currentQ];
+            if (idx === q.answer) {
+                isAnswered = true;
+                btn.classList.add('correct');
+                document.querySelectorAll('.btn-option').forEach(b => b.style.pointerEvents = 'none');
+                document.getElementById('targetBox').style.boxShadow = "none";
+                document.getElementById('resText').innerHTML = q[currentLang].res;
+                document.getElementById('resTitle').innerText = currentLang === 'zh' ? '正确！(Correct!)' : 'Correct!';
+                document.getElementById('resolutionPanel').style.display = 'block';
+            } else {
+                btn.classList.add('wrong');
+                setTimeout(() => btn.classList.remove('wrong'), 500);
+            }
+        }
+
+        function nextQuestion() {
+            currentQ = (currentQ + 1) % gameData.length;
+            loadQuestion();
+        }
+
+        // --- Init All ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Parallax scroll for hero
+            window.addEventListener('scroll', () => {
+                const scrollPos = window.scrollY;
+                if(scrollPos < window.innerHeight) {
+                    document.getElementById('heroBg').style.transform = `scale(${1.05 + scrollPos * 0.0005})`;
+                }
+            });
+            initWorkspace();
+            // loadQuestion will set img.src and wait for onload to position the box
+            loadQuestion();
+            // Also re-position on window resize
+            window.addEventListener('resize', () => { if (gameData[currentQ]) positionBox(); });
+        });
+    </script>
+</body>
+</html>
